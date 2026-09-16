@@ -18,6 +18,12 @@ on:
     - cron: '0 4 * * 1'
   pull_request:
 
+# A newer run supersedes an older one, except for a release build, which is
+# left alone so it cannot be cancelled part way through pushing tags.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'schedule' }}
+
 env:
   IMAGE: alex1075/flimkit
 
