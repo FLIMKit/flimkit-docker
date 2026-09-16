@@ -73,32 +73,52 @@ jobs:
       matrix:
         include:
           - variant: latest
+            flavour: web
             extras: gui
             torch_index: ""
             desktop: 0
             python: "3.14"
             gpu: false
           - variant: desktop
+            flavour: web
             extras: gui
             torch_index: ""
             desktop: 1
             python: "3.14"
             gpu: false
           - variant: cellpose
+            flavour: web
             extras: gui,cellpose
             torch_index: https://download.pytorch.org/whl/cpu
             desktop: 0
             python: "3.14"
             gpu: false
           - variant: cuda
+            flavour: web
             extras: gui,cellpose
             torch_index: https://download.pytorch.org/whl/cu126
             desktop: 0
             python: "3.14"
             gpu: true
-          # ROCm wheels lag behind Python releases, so this one stays on 3.12
+          # ROCm wheels lag behind Python releases, so these stay on 3.12
           - variant: rocm
+            flavour: web
             extras: gui,cellpose
+            torch_index: https://download.pytorch.org/whl/rocm6.2
+            desktop: 0
+            python: "3.12"
+            gpu: true
+          # Headless: the bridge API for QuPath, Fiji and batch work, no X and no Tk
+          - variant: cuda-headless
+            flavour: bridge
+            extras: cellpose
+            torch_index: https://download.pytorch.org/whl/cu126
+            desktop: 0
+            python: "3.14"
+            gpu: true
+          - variant: rocm-headless
+            flavour: bridge
+            extras: cellpose
             torch_index: https://download.pytorch.org/whl/rocm6.2
             desktop: 0
             python: "3.12"
@@ -128,10 +148,12 @@ jobs:
             FLIMKIT_EXTRAS=${{ matrix.extras }}
             TORCH_INDEX=${{ matrix.torch_index }}
             INCLUDE_DESKTOP=${{ matrix.desktop }}
+            FLAVOUR=${{ matrix.flavour }}
           cache-from: type=gha,scope=${{ matrix.variant }}
           cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
 
       - name: Smoke test the web UI
+        if: matrix.flavour == 'web'
         run: |
           docker run -d --name smoke -p 14500:14500 -e FLIMKIT_PASSWORD=smoke flimkit-smoke:${{ matrix.variant }}
           for i in $(seq 1 90); do
@@ -143,6 +165,21 @@ jobs:
           curl -fsS -u flimkit:smoke http://127.0.0.1:14500/api/state \
             | python3 -c "import json, sys; s = json.load(sys.stdin); print('web UI up:', s['form'], len(s['fields']), 'fields')"
           docker exec smoke python -c "import flimkit; print('flimkit', flimkit.__file__)"
+
+      - name: Smoke test the bridge
+        if: matrix.flavour == 'bridge'
+        run: |
+          docker run -d --name smoke -p 8765:8765 -e FLIMKIT_BRIDGE_TOKEN=smoke flimkit-smoke:${{ matrix.variant }}
+          for i in $(seq 1 90); do
+            curl -fsS http://127.0.0.1:8765/v1/status >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8765/v1/status \
+            | python3 -c "import json, sys; s = json.load(sys.stdin); print('bridge up: protocol', s.get('protocol_version'), 'flimkit', s.get('flimkit_version'))"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/v1/fit/defaults)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer smoke' http://127.0.0.1:8765/v1/fit/defaults)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: elsewhere' http://127.0.0.1:8765/v1/status)" = "403"
+          docker exec smoke sh -c "python -c 'import tkinter' 2>&1 | tail -1"
 
       - name: Container logs
         if: always()
@@ -171,4 +208,5 @@ jobs:
             FLIMKIT_EXTRAS=${{ matrix.extras }}
             TORCH_INDEX=${{ matrix.torch_index }}
             INCLUDE_DESKTOP=${{ matrix.desktop }}
+            FLAVOUR=${{ matrix.flavour }}
           cache-from: type=gha,scope=${{ matrix.variant }}

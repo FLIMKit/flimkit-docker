@@ -25,12 +25,38 @@ Then open **http://localhost:14500** and log in as `flimkit` with that password.
 | `cellpose` | adds Cellpose and CPU torch, for "Apply cell mask" | ~2.4 GB |
 | `cuda` | adds Cellpose and CUDA torch, `docker run --gpus all ...` | larger again |
 | `rocm` | adds Cellpose and ROCm torch, `docker run --device /dev/kfd --device /dev/dri ...` | larger again |
+| `cuda-headless` | the bridge API instead of the web UI, with Cellpose and CUDA torch | ~270 MB less than `cuda` |
+| `rocm-headless` | the same for AMD | ~270 MB less than `rocm` |
+
+GPU fitting in FLIMKit is torch, so every GPU image carries it whether or not Cellpose is installed.
 
 Every tag is also published with its FLIMKit version, for example `0.13.5-latest` and `0.13.5-cuda`. Sizes are the unpacked filesystem measured inside the container; the download is smaller.
 
 `latest` leaves out Cellpose and torch, which are over half the old image and are only needed by the Cellpose cell mask. Everything else — fitting, phasor, stitching, batch, the machine IRF builder — works there. Use `cellpose` if you want cell masking without a GPU.
 
 It also leaves out the noVNC desktop, whose dependency tree (node, ghostscript, perl, a second system numpy) costs about 300 MB. `FLIMKIT_DESKTOP=1` therefore needs the `desktop` tag; on any other tag the container says so and carries on serving the web UI.
+
+## Headless images
+
+`cuda-headless` and `rocm-headless` serve [flimkit-bridge](https://github.com/FLIMKit/flimkit-bridge), the HTTP API that the QuPath and Fiji add-ons speak, instead of the browser UI. They carry no X server and no Tk, which is the right shape for a GPU node doing batch work or answering a viewer, rather than one showing somebody a browser.
+
+```bash
+docker run -d \
+  --gpus all \
+  --network host \
+  -e FLIMKIT_BRIDGE_TOKEN=choose-a-token \
+  -v /path/to/your/data:/data \
+  --name flimkit-bridge \
+  alex1075/flimkit:cuda-headless
+```
+
+**The bridge only answers requests whose `Host` header is `localhost` or `127.0.0.1`**, which is what stops a web page in your browser reaching it. That check is on the header, not the socket, so publishing a port and pointing a client at `http://gpu-box:8765` returns 403. Reach it either with `--network host` from the same machine, or over an SSH tunnel so the client sees `localhost`:
+
+```bash
+ssh -N -L 8765:localhost:8765 you@gpu-box
+```
+
+Set `FLIMKIT_BRIDGE_TOKEN` and give clients the same token; without it the bridge mints a new one each start and writes it to `~/.flimkit/bridge.json`, which a client in another container cannot read. `FLIMKIT_BRIDGE_PORT` moves the port.
 
 ## Settings
 

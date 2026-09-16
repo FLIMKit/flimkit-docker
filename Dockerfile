@@ -1,21 +1,21 @@
 ARG PYTHON_VERSION=3.14
 FROM python:${PYTHON_VERSION}-slim-bookworm
 
-# Tk needs an X server, so every variant carries Xvfb.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        xvfb \
-        x11-utils \
         tzdata \
-        python3-tk \
         libglib2.0-0 \
-        libx11-6 \
-        libxext6 \
-        libxcomposite1 \
-        libxdamage1 \
-        libxfixes3 \
-        libxrandr2 \
-        fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+
+# web serves the browser UI and needs Tk, so it needs an X server to draw on.
+# bridge serves the HTTP API that QuPath and Fiji speak, and needs neither.
+ARG FLAVOUR=web
+RUN if [ "${FLAVOUR}" = "web" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+            xvfb x11-utils python3-tk \
+            libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            fonts-dejavu-core \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 ENV TZ=Etc/UTC \
     MPLCONFIGDIR=/tmp/mpl-cache
@@ -32,7 +32,12 @@ RUN pip install --no-cache-dir "flimkit[${FLIMKIT_EXTRAS}]==${FLIMKIT_VERSION}"
 
 # Switch the default to flimkit-web-ui==<version> once it is published on PyPI
 ARG FLIMKIT_WEB_UI=https://github.com/FLIMKit/flimkit-web-ui/archive/refs/heads/main.zip
-RUN pip install --no-cache-dir "${FLIMKIT_WEB_UI}"
+ARG FLIMKIT_BRIDGE=flimkit-bridge
+RUN if [ "${FLAVOUR}" = "web" ]; then \
+        pip install --no-cache-dir "${FLIMKIT_WEB_UI}"; \
+    else \
+        pip install --no-cache-dir "${FLIMKIT_BRIDGE}"; \
+    fi
 
 RUN mkdir -p /tmp/mpl-cache && chmod 777 /tmp/mpl-cache
 
@@ -51,14 +56,19 @@ RUN if [ "${INCLUDE_DESKTOP}" = "1" ]; then \
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-ENV FLIMKIT_WEB_HOST=0.0.0.0 \
+ENV FLIMKIT_FLAVOUR=${FLAVOUR} \
+    FLIMKIT_WEB_HOST=0.0.0.0 \
     FLIMKIT_WEB_PORT=14500 \
-    FLIMKIT_WEB_HEADLESS=1
+    FLIMKIT_WEB_HEADLESS=1 \
+    FLIMKIT_BRIDGE_HOST=0.0.0.0 \
+    FLIMKIT_BRIDGE_PORT=8765
 
-EXPOSE 14500 14501
+EXPOSE 14500 14501 8765
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['FLIMKIT_WEB_PORT'] + '/healthz', timeout=4)"
+    CMD python -c "import os, urllib.request; \
+url = 'http://127.0.0.1:' + os.environ['FLIMKIT_BRIDGE_PORT'] + '/v1/status' if os.environ.get('FLIMKIT_FLAVOUR') == 'bridge' else 'http://127.0.0.1:' + os.environ['FLIMKIT_WEB_PORT'] + '/healthz'; \
+urllib.request.urlopen(url, timeout=4)"
 
 ARG FLIMKIT_VERSION
 LABEL org.opencontainers.image.title="FLIMKit" \

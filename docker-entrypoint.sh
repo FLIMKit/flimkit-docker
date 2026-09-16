@@ -1,6 +1,17 @@
 #!/bin/bash
 set -e
 
+if [ "${FLIMKIT_FLAVOUR:-web}" = "bridge" ]; then
+    # The bridge answers only requests whose Host header is localhost, so reach it
+    # over an SSH tunnel or with --network host rather than a published port.
+    args=(--host "${FLIMKIT_BRIDGE_HOST:-0.0.0.0}" --port "${FLIMKIT_BRIDGE_PORT:-8765}")
+    if [ -n "$FLIMKIT_BRIDGE_TOKEN" ]; then
+        args+=(--token "$FLIMKIT_BRIDGE_TOKEN")
+    fi
+    echo "[flimkit] serving the bridge API; clients must send Host: localhost (SSH tunnel or --network host)" >&2
+    exec flimkit-bridge "${args[@]}"
+fi
+
 export DISPLAY=:100
 geometry=${FLIMKIT_GEOMETRY:-1440x900}
 export FLIMKIT_WEB_PASSWORD=${FLIMKIT_WEB_PASSWORD:-$FLIMKIT_PASSWORD}
