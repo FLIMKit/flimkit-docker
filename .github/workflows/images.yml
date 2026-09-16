@@ -70,26 +70,32 @@ jobs:
             extras: gui
             torch_index: ""
             desktop: 0
+            python: "3.14"
             gpu: false
           - variant: desktop
             extras: gui
             torch_index: ""
             desktop: 1
+            python: "3.14"
             gpu: false
           - variant: cellpose
             extras: gui,cellpose
             torch_index: https://download.pytorch.org/whl/cpu
             desktop: 0
+            python: "3.14"
             gpu: false
           - variant: cuda
             extras: gui,cellpose
             torch_index: https://download.pytorch.org/whl/cu126
             desktop: 0
+            python: "3.14"
             gpu: true
+          # ROCm wheels lag behind Python releases, so this one stays on 3.12
           - variant: rocm
             extras: gui,cellpose
             torch_index: https://download.pytorch.org/whl/rocm6.2
             desktop: 0
+            python: "3.12"
             gpu: true
     steps:
       - uses: actions/checkout@v4
@@ -111,6 +117,7 @@ jobs:
           load: true
           tags: flimkit-smoke:${{ matrix.variant }}
           build-args: |
+            PYTHON_VERSION=${{ matrix.python }}
             FLIMKIT_VERSION=${{ needs.version.outputs.version }}
             FLIMKIT_EXTRAS=${{ matrix.extras }}
             TORCH_INDEX=${{ matrix.torch_index }}
@@ -153,6 +160,7 @@ jobs:
             ${{ env.IMAGE }}:${{ matrix.variant }}
             ${{ env.IMAGE }}:${{ needs.version.outputs.version }}-${{ matrix.variant }}
           build-args: |
+            PYTHON_VERSION=${{ matrix.python }}
             FLIMKIT_VERSION=${{ needs.version.outputs.version }}
             FLIMKIT_EXTRAS=${{ matrix.extras }}
             TORCH_INDEX=${{ matrix.torch_index }}
