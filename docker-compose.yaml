@@ -6,7 +6,7 @@ services:
       # - "14501:14501"    # full desktop view, needs FLIMKIT_DESKTOP=1
     volumes:
       - /mnt/tank/microscopy:/data
-      - /mnt/tank/flimkit-config:/root/.flimkit
+      - /mnt/tank/flimkit-config:/config
     environment:
       - TZ=Etc/UTC
       # - FLIMKIT_PASSWORD=choose-a-password

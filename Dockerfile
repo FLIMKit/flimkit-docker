@@ -41,6 +41,14 @@ RUN if [ "${FLAVOUR}" = "web" ]; then \
 
 RUN mkdir -p /tmp/mpl-cache && chmod 777 /tmp/mpl-cache
 
+# TrueNAS and other hosts run containers as an arbitrary non-root user. Xvfb
+# refuses to create /tmp/.X11-unix when euid is not 0, and FLIMKit writes its
+# config under HOME, which is not /root for such a user.
+ENV HOME=/config
+RUN mkdir -p /tmp/.X11-unix /config \
+    && chmod 1777 /tmp/.X11-unix \
+    && chmod 777 /config
+
 # The noVNC desktop view is off by default: its dependency tree (node, ghostscript,
 # perl, a second system numpy) adds about 300 MB, and the web UI covers the work.
 ARG INCLUDE_DESKTOP=0

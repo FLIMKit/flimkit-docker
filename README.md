@@ -11,7 +11,7 @@ docker run -d \
   -p 14500:14500 \
   -e FLIMKIT_PASSWORD=choose-a-password \
   -v /path/to/your/data:/data \
-  -v /path/to/flimkit-config:/root/.flimkit \
+  -v /path/to/flimkit-config:/config \
   --name flimkit \
   alex1075/flimkit:latest
 ```
@@ -67,7 +67,7 @@ Set `FLIMKIT_BRIDGE_TOKEN` and give clients the same token; without it the bridg
 | `FLIMKIT_GEOMETRY` | `1440x900` | Size of the virtual screen FLIMKit draws on |
 | `TZ` | `Etc/UTC` | Time zone for log timestamps |
 
-Mount your data at `/data` and the config at `/root/.flimkit`, which is where FLIMKit keeps expert settings, preferences and recent files. The container reports healthy once the web UI answers on `/healthz`.
+Mount your data at `/data` and the config at `/config`, which is `HOME` in the image and where FLIMKit keeps expert settings, preferences and recent files. The images run as an arbitrary non-root user too, which is how TrueNAS starts them. The container reports healthy once the web UI answers on `/healthz`.
 
 **TrueNAS SCALE (Custom App):** paste `docker-compose.yaml` from this repository, edit the volume paths to match your pool, and set `FLIMKIT_PASSWORD`.
 
